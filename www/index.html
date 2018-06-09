@@ -28,22 +28,127 @@
             * Disables use of inline scripts in order to mitigate risk of XSS vulnerabilities. To change this:
                 * Enable inline JS: add 'unsafe-inline' to default-src
         -->
-        <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; img-src 'self' data: content:;">
+        <meta http-equiv="Content-Security-Policy" content="default-src * data: cdvfile: gap: https://ssl.gstatic.com 'unsafe-eval'; style-src 'self' 'unsafe-inline'; media-src *; img-src 'self' data: content:; script-src * 'unsafe-inline' 'unsafe-eval'">
         <meta name="format-detection" content="telephone=no">
         <meta name="msapplication-tap-highlight" content="no">
         <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
-        <link rel="stylesheet" type="text/css" href="css/index.css">
         <title>Hello World</title>
+        <script type="text/javascript" src="cordova.js"></script>
+        <script>
+          var musics = ["c11.mp3","c9.mp3","d8.mp3"];
+          var baseUrl = "http://techmobile.punyu.jp/CB-14120/";
+
+          function downloadAll(list) {
+            if (list.length == 0) {
+              alert("download success");
+            } else {
+              var url = baseUrl + list[0];
+              var filename = list[0];
+              downloadFile(url, filename, function(fn) {
+                // alert(filename);
+                downloadAll(list.slice(1));
+              }, function() {
+                alert("download error ! : " + filename);
+              });
+            }
+          }
+
+          function downloadFile(url, filename, success, failure) {
+            var req = new XMLHttpRequest();
+            req.open("GET", url, true);
+            req.responseType = "arraybuffer";
+            req.onerror = function(e) {
+              failure(e);
+            }
+            req.onload = function(ev) {
+              var arrayBuffer = req.response;
+              if (arrayBuffer) {
+                saveFile(arrayBuffer, filename, success, failure);
+              }
+            };
+            req.send(null);
+          }
+
+          function saveFile(arrayBuffer, filename, success, failure) {
+            window.requestFileSystem(LocalFileSystem.PERSISTENT, 0, function(fs) {
+            fs.root.getFile(filename , {create:true, exclusive:false},
+              function(entry) {
+                entry.createWriter(
+                  function(writer) {
+                    writer.onwrite = function() { success(filename) };
+                    writer.onerror = failure;
+                    writer.write( arrayBuffer );
+
+                  },
+                  failure
+                );
+              },
+                failure
+              );
+            },
+              failure
+            );
+          };
+
+          var musicIndex = 0;
+          var media = null;
+          var mediaTimer = null;
+          var lock = false;
+
+          function startPlayAudio() {
+            if (lock) {
+              alert("now playing");
+            }
+            lock = true;
+            musicIndex = 0;
+            media = null;
+            mediaTimer = null;
+            playAudio1();
+            var elem = document.getElementById("musicPosition");
+            var showMusicPosition = function() {
+              if (media != null) {
+                var dur = media.getDuration();
+                media.getCurrentPosition( function(position) {
+                  elem.innerHTML = musics[musicIndex] + " " + position + "/" + dur + " [sec]";
+                });
+              }
+              mediaTimer = setTimeout(showMusicPosition, 250);
+            }
+            mediaTimer = setTimeout(showMusicPosition, 1);
+          }
+
+          function playAudio1() {
+            var url = "cdvfile://localhost/persistent/" + musics[musicIndex];
+
+            media = new Media(url,
+              function() {
+              },
+              function(err) {
+              },
+              function(status) {
+                console.log("status = " + status);
+                if (status === Media.MEDIA_STOPPED) {
+                  media.release();
+                  musicIndex += 1;
+                  if (musicIndex < musics.length) {
+                    playAudio1();
+                  } else {
+                    lock = false;
+                    clearTimeout(mediaTimer);
+                  }
+                }
+              }
+            );
+            media.stop();
+            media.play();
+          }
+        </script>
     </head>
     <body>
-        <div class="app">
-            <h1>Apache Cordova</h1>
-            <div id="deviceready" class="blink">
-                <p class="event listening">Connecting to Device</p>
-                <p class="event received">Device is Ready</p>
-            </div>
-        </div>
-        <script type="text/javascript" src="cordova.js"></script>
-        <script type="text/javascript" src="js/index.js"></script>
+        <div><button onclick="downloadAll(musics)">DownloadFiles</button></div>
+        <br>
+        <div><button onclick="startPlayAudio()">StartPlayAudio</button></div>
+        <br>
+        <div id="musicPosition"></div>
     </body>
 </html>
