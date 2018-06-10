@@ -98,6 +98,7 @@
           function startPlayAudio() {
             if (lock) {
               alert("now playing");
+              return;
             }
             lock = true;
             musicIndex = 0;
